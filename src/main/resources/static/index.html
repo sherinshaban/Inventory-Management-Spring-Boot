@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Smart Inventory System (Full)</title>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f4f4f9; margin: 0; padding: 0; }
+        .header { background-color: #2c3e50; color: white; padding: 20px; text-align: center; }
+        .container { padding: 20px; max-width: 1000px; margin: auto; }
+   
+        .btn { padding: 8px 12px; border: none; border-radius: 4px; cursor: pointer; color: white; font-weight: bold; font-size: 14px; }
+        .btn-add { background-color: #27ae60; margin-bottom: 15px; }
+        .btn-edit { background-color: #f39c12; }
+        .btn-delete { background-color: #c0392b; margin-left: 5px; }
+        
+   
+        table { width: 100%; border-collapse: collapse; background: white; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 5px rgba(0,0,0,0.1); margin-top: 10px; }
+        th, td { padding: 12px 15px; text-align: left; border-bottom: 1px solid #ddd; }
+        th { background-color: #3498db; color: white; }
+        
+    
+        .form-popup { display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background: white; padding: 20px; box-shadow: 0 5px 15px rgba(0,0,0,0.3); border-radius: 8px; width: 300px; z-index: 10; }
+        .form-popup input { width: 90%; padding: 8px; margin: 5px 0; border: 1px solid #ddd; border-radius: 4px; display: block; }
+        .overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 5; }
+    </style>
+</head>
+<body>
+
+    <div class="header">
+        <h1>📦 Inventory Control (CRUD)</h1>
+    </div>
+
+    <div class="container">
+        <button class="btn btn-add" onclick="openForm()">+ Add New Product</button>
+        <p id="status" style="color: gray; font-size: 14px; float: right;"></p>
+
+        <table>
+            <thead>
+                <tr>
+                    <th>SKU</th>
+                    <th>Name</th>
+                    <th>Category</th>
+                    <th>Price</th>
+                    <th>Qty</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody id="product-table"></tbody>
+        </table>
+    </div>
+
+    <div class="overlay" id="overlay" onclick="closeForm()"></div>
+    <div class="form-popup" id="myForm">
+        <h3 id="form-title">Add Product</h3>
+        <input type="text" id="p-sku" placeholder="SKU">
+        <input type="text" id="p-name" placeholder="Name">
+        <input type="text" id="p-cat" placeholder="Category">
+        <input type="number" id="p-price" placeholder="Price">
+        <input type="number" id="p-qty" placeholder="Quantity">
+        <button class="btn btn-add" style="width:100%" onclick="saveProduct()">Save</button>
+        <button class="btn" style="width:100%; margin-top:5px; background-color:#7f8c8d" onclick="closeForm()">Cancel</button>
+    </div>
+
+    <script>
+        const API_URL = "http://localhost:9090/api/products";
+        let isEditing = false;
+
+      
+        async function renderTable() {
+            const table = document.getElementById("product-table");
+            table.innerHTML = "<tr><td colspan='6'>Loading...</td></tr>";
+            
+            try {
+                const response = await fetch(API_URL);
+                const products = await response.json();
+                table.innerHTML = "";
+
+                products.forEach((p) => {
+                    let row = `<tr>
+                        <td>${p.sku}</td>
+                        <td>${p.name}</td>
+                        <td>${p.category}</td>
+                        <td>$${p.price}</td>
+                        <td>${p.quantity}</td>
+                        <td>
+                            <button class="btn btn-edit" onclick="editProduct('${p.sku}', '${p.name}', '${p.category}', ${p.price}, ${p.quantity})">Edit</button>
+                            <button class="btn btn-delete" onclick="deleteProduct('${p.sku}')">Delete</button>
+                        </td>
+                    </tr>`;
+                    table.innerHTML += row;
+                });
+                document.getElementById("status").innerText = "Last Update: " + new Date().toLocaleTimeString();
+            } catch (error) {
+                table.innerHTML = "<tr><td colspan='6' style='color:red'>Server Error! Is Java running?</td></tr>";
+            }
+        }
+
+        
+        async function saveProduct() {
+            const sku = document.getElementById("p-sku").value;
+            const product = {
+                sku: sku,
+                name: document.getElementById("p-name").value,
+                category: document.getElementById("p-cat").value,
+                price: parseFloat(document.getElementById("p-price").value),
+                quantity: parseInt(document.getElementById("p-qty").value)
+            };
+
+            const method = isEditing ? "PUT" : "POST"; // لو تعديل استخدم PUT
+            const url = isEditing ? `${API_URL}/${sku}` : API_URL;
+
+            await fetch(url, {
+                method: method,
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(product)
+            });
+
+            closeForm();
+            renderTable();
+        }
+
+        
+        async function deleteProduct(sku) {
+            if(confirm("Are you sure you want to delete SKU: " + sku + "?")) {
+                await fetch(`${API_URL}/${sku}`, { method: "DELETE" });
+                renderTable();
+            }
+        }
+
+        
+        function editProduct(sku, name, cat, price, qty) {
+            isEditing = true;
+            document.getElementById("form-title").innerText = "Edit Product";
+            document.getElementById("p-sku").value = sku;
+            document.getElementById("p-sku").disabled = true; 
+            document.getElementById("p-name").value = name;
+            document.getElementById("p-cat").value = cat;
+            document.getElementById("p-price").value = price;
+            document.getElementById("p-qty").value = qty;
+            
+            document.getElementById("myForm").style.display = "block";
+            document.getElementById("overlay").style.display = "block";
+        }
+
+        function openForm() {
+            isEditing = false;
+            document.getElementById("form-title").innerText = "Add New Product";
+            document.getElementById("p-sku").disabled = false;
+            document.getElementById("p-sku").value = "";
+            document.getElementById("p-name").value = "";
+            document.getElementById("myForm").style.display = "block";
+            document.getElementById("overlay").style.display = "block";
+        }
+
+        function closeForm() {
+            document.getElementById("myForm").style.display = "none";
+            document.getElementById("overlay").style.display = "none";
+        }
+
+        renderTable();
+    </script>
+</body>
+</html>
